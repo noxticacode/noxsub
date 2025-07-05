@@ -38,7 +38,7 @@ class Data:
 @{} adalah Bot untuk menyimpan postingan atau file yang dapat diakses melalui link khusus.
 
   Framework: <a href='https://docs.hydrogram.org'>hydrogram</a>
-  Re-Code From: <a href='https://github.com/mrismanaziz/File-Sharing-Man'>File-Sharing-Man</a>
+  Developer: <a href='https://t.me/MasterHereXD'>Master</a>
 """
 
 
