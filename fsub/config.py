@@ -14,7 +14,7 @@ DATABASE_NAME = os.getenv("DATABASE_NAME")
 
 RESTRICT = os.getenv("RESTRICT", True)
 
-BUTTON_TITLE = os.getenv("BUTTON_TITLE", "JOIN")
+BUTTON_TITLE = os.getenv("BUTTON_TITLE", "ᴊᴏɪɴ")
 BUTTON_ROW = int(os.getenv("BUTTON_ROW", 2))
 
 FORCE_SUB_ = {}
