@@ -1,5 +1,6 @@
 import sys
 import uvloop
+import asyncio
 from hydrogram import Client
 from fsub.config import (
     CHANNEL_DB,
@@ -80,4 +81,9 @@ class Bot(Client):
         self.LOGGER(__name__).info("Bot Berhenti!\n\n")
 
 
-Bot().run()
+if __name__ == "__main__":
+    try:
+        asyncio.set_event_loop(asyncio.new_event_loop())
+    except Exception:
+        pass
+    Bot().run()
