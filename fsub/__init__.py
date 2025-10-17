@@ -1,5 +1,6 @@
 import sys
 import uvloop
+import asyncio # <--- PERBAIKAN 1: Tambahkan import asyncio
 
 from hydrogram import Client
 
@@ -87,5 +88,21 @@ class Bot(Client):
         await super().stop()
         self.LOGGER(__name__).info("Bot Berhenti!\n\n")
 
+# HAPUS BARIS 'Bot().run()' YANG LAMA DAN GANTI DENGAN KODE ASINKRON BERIKUT
+# =========================================================================
 
-Bot().run()
+async def main():
+    """Fungsi asinkron untuk menginisialisasi dan menjalankan bot."""
+    bot = Bot()
+    await bot.start()
+    await bot.idle() # idle() menjaga bot tetap berjalan dan mendengarkan events
+
+if __name__ == "__main__":
+    try:
+        # PERBAIKAN 2: asyncio.run() memulai event loop dengan benar di MainThread
+        asyncio.run(main()) 
+    except KeyboardInterrupt:
+        # Exit bersih saat Ctrl+C ditekan
+        sys.exit()
+    except Exception as e:
+        print(f"Error saat menjalankan bot: {e}")
