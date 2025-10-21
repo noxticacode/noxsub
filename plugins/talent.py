@@ -109,18 +109,15 @@ async def list_talents_command(client: Bot, message: Message):
     for i, talent in enumerate(talents):
         talent_name = talent['name']
         talent_id = talent['_id']
-        
-        # <--- PERUBAHAN 1: Membuat nama talent bisa diklik ---
         talent_link = f"[{talent_name}](tg://user?id={talent_id})"
         
         text += f"{i+1}. {talent_link} | `{talent_id}`"
-        # --------------------------------------------------
         
         if talent['strawberries'] > 0:
             text += f" | 🍓{talent['strawberries']}"
         text += "\n"
 
-    await message.reply(text, disable_web_page_preview=True) # <--- PERUBAHAN 2: Menambahkan disable_web_page_preview
+    await message.reply(text, disable_web_page_preview=True) 
 
 
 @Bot.on_message(filters.command("rate") & filters.private)
@@ -134,7 +131,7 @@ async def rate_talent_command(client: Bot, message: Message):
     except ValueError:
         return await message.reply("User ID talent tidak valid.")
 
-    user = message.from_user # <--- PERUBAHAN 3: Menyimpan data user
+    user = message.from_user 
     user_id = user.id
 
     if user_id == talent_id:
@@ -164,7 +161,6 @@ async def rate_talent_command(client: Bot, message: Message):
 
         await message.reply(f"✅ Berhasil! Anda memberikan 1 🍓 ke **{talent['name']}**.\n{final_balance_text}")
 
-        # <--- PERUBAHAN 4: Notifikasi ke talent dengan nama pengirim yang bisa diklik ---
         try:
             sender_name = user.first_name
             sender_id = user.id
@@ -173,11 +169,10 @@ async def rate_talent_command(client: Bot, message: Message):
             await client.send_message(
                 talent_id,
                 f"🎉 Selamat! Anda baru saja menerima 1 🍓 dari {sender_link}.",
-                disable_web_page_preview=True # Menambahkan ini agar rapi
+                disable_web_page_preview=True 
             )
         except Exception:
             pass 
-        # -------------------------------------------------------------------------
 
     except Exception as e:
         await message.reply(f"Terjadi error saat memproses rating: {e}")
@@ -192,7 +187,8 @@ async def my_coins_command(client: Bot, message: Message):
     if user_id in ADMINS:
         balance_text = "∞ (Tidak Terbatas)"
     else:
-        balance = get_coin_balance(user_D)
+        # <--- PERUBAHAN DI SINI: user_D diubah menjadi user_id ---
+        balance = get_coin_balance(user_id) 
         balance_text = f"**{balance}**"
 
     await message.reply(f"Anda memiliki: {balance_text} 🪙 coin.")
