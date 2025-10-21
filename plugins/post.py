@@ -24,8 +24,8 @@ from fsub.func import encode
             "deltalent",
             "tfcoin",
             "talent",
-            "rate"
-            "mycoins"
+            "rate",
+            "mycoins",
             "broadcast"
         ]
     )
