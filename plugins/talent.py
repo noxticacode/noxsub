@@ -1,5 +1,6 @@
 import asyncio
 from fsub import Bot
+# <--- PENAMBAHAN: Pastikan ADMINS di-import ---
 from fsub.config import ADMINS 
 from fsub.database import (
     add_talent,
@@ -93,7 +94,7 @@ async def transfer_coin_command(client: Bot, message: Message):
         pass
 
 
-# --- Perintah Talent (DIPERBARUI) ---
+# --- Perintah Talent ---
 
 @Bot.on_message(filters.command("setvip") & filters.private)
 async def set_vip_command(client: Bot, message: Message):
@@ -122,18 +123,14 @@ async def set_vip_command(client: Bot, message: Message):
             chat = await client.get_chat(chat_id)
             member = await client.get_chat_member(chat_id, "me")
             
-            # <--- INI ADALAH PERBAIKANNYA ---
-            # Mengecek `member.privileges.can_invite_users`
             if member.status != ChatMemberStatus.ADMINISTRATOR or not (member.privileges and member.privileges.can_invite_users):
                 return await message.reply("Gagal! Saya harus menjadi Admin di channel tersebut dan memiliki izin 'Undang Pengguna via Link'.")
-            # <--- AKHIR PERBAIKAN ---
 
         except (Unauthorized, UserNotParticipant):
             return await message.reply("Gagal mengakses channel. Pastikan saya telah ditambahkan ke channel tersebut dan menjadi admin.")
         except Exception as e:
             return await message.reply(f"Error saat memvalidasi channel: {e}")
         
-        # Simpan jika validasi sukses
         set_vip_channel(user_id, chat_id, chat.title)
         await message.reply(f"✅ **Channel VIP Anda berhasil diatur!**\n\nNama Channel: {chat.title}\nMember sekarang bisa membeli akses ke channel ini.")
         
@@ -158,7 +155,7 @@ async def del_vip_command(client: Bot, message: Message):
     await message.reply("✅ **Channel VIP Anda telah dihapus.**\n\nMember tidak bisa lagi membelinya.")
 
 
-# --- Perintah Pengguna (Diperbarui) ---
+# --- Perintah Pengguna ---
 
 @Bot.on_message(filters.command("talent") & filters.private)
 async def list_talents_command(client: Bot, message: Message):
@@ -174,9 +171,7 @@ async def list_talents_command(client: Bot, message: Message):
         talent_name = talent['name']
         talent_id = talent['_id']
         talent_link = f"[{talent_name}](tg://user?id={talent_id})"
-        
         line = f"{i+1}. {talent_link} | `{talent_id}`"
-        
         row_buttons = [] 
         
         if talent.get('vip_chat_id'): 
@@ -284,7 +279,7 @@ async def handle_buy_vip_callback(client: Bot, query):
         if member.status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
             return await query.answer(f"Anda sudah menjadi anggota di channel VIP {talent_name}.", show_alert=True)
     except UserNotParticipant:
-        pass # User belum bergabung, lanjutkan proses pembelian
+        pass 
     except Exception as e:
         return await query.answer(f"Error saat cek keanggotaan: {e}", show_alert=True)
 
@@ -334,8 +329,10 @@ async def handle_buy_vip_callback(client: Bot, query):
     except Exception as e:
         return await query.answer(f"Gagal membuat link undangan: {e}", show_alert=True)
 
-    # 9. Kirim notifikasi ke Talent (hanya jika pembelian pertama)
+    # 9. Kirim notifikasi (hanya jika pembelian pertama)
     if not has_purchased_before:
+        
+        # Notifikasi ke Talent
         try:
             sender_link = f"[{user.first_name}](tg://user?id={user_id})"
             await client.send_message(
@@ -344,3 +341,24 @@ async def handle_buy_vip_callback(client: Bot, query):
             )
         except Exception:
             pass # Gagal secara diam-diam
+
+        # <--- PENAMBAHAN BARU: Notifikasi ke Admin ---
+        try:
+            buyer_link = f"[{user.first_name}](tg://user?id={user_id})"
+            talent_link = f"[{talent['name']}](tg://user?id={talent_id})"
+            
+            notif_text = (
+                f"🔔 **Notifikasi Pembelian VIP** 🔔\n\n"
+                f"👤 **Pembeli:** {buyer_link} (`{user_id}`)\n"
+                f"⭐️ **Talent:** {talent_link} (`{talent_id}`)\n"
+                f"💰 **Harga:** {VIP_COST} 🪙"
+            )
+            
+            for admin_id in ADMINS:
+                try:
+                    await client.send_message(admin_id, notif_text, disable_web_page_preview=True)
+                except Exception:
+                    pass # Jangan hentikan proses jika 1 admin memblokir bot
+        except Exception:
+            pass # Gagal total mengirim notif admin (jarang terjadi)
+        # <--- AKHIR PENAMBAHAN ---
