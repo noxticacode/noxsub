@@ -1,6 +1,7 @@
 import asyncio
 from fsub import Bot
-from fsub.config import ADMINS
+# Pastikan ADMINS di-impor dari config
+from fsub.config import ADMINS 
 from fsub.database import (
     add_talent,
     del_talent,
@@ -36,7 +37,6 @@ async def add_talent_command(client: Bot, message: Message):
         return await message.reply("Talent ini sudah terdaftar.")
 
     try:
-        # Cek user dan ambil namanya
         user = await client.get_users(user_id)
         name = user.first_name
     except (PeerIdInvalid, ValueError):
@@ -82,15 +82,10 @@ async def transfer_coin_command(client: Bot, message: Message):
     
     if amount <= 0:
         return await message.reply("Jumlah harus angka positif.")
-
-    # Logika koin unlimited untuk admin (terutama 6520271722)
-    # Admin tidak menghabiskan saldo mereka, mereka 'menciptakan' koin untuk user.
-    # Jadi, saldo admin tidak perlu diperiksa.
     
     add_coins(user_id, amount)
     await message.reply(f"✅ Sukses mentransfer {amount} 🪙 coin ke user `{user_id}`.")
 
-    # Kirim notifikasi ke penerima
     try:
         await client.send_message(
             user_id,
@@ -99,7 +94,7 @@ async def transfer_coin_command(client: Bot, message: Message):
     except (UserIsBlocked, InputUserDeactivated, PeerIdInvalid):
         await message.reply("(Notifikasi ke user gagal: Bot mungkin diblokir atau user tidak aktif.)")
     except Exception:
-        pass # Gagal secara diam-diam jika notifikasi error
+        pass
 
 
 # --- Perintah Pengguna ---
@@ -137,23 +132,38 @@ async def rate_talent_command(client: Bot, message: Message):
     if user_id == talent_id:
         return await message.reply("Anda tidak bisa me-rate diri sendiri.")
 
-    # Cek apakah target adalah talent
     talent = get_talent(talent_id)
     if not talent:
         return await message.reply("User ID tersebut bukan talent terdaftar.")
 
-    # Cek saldo koin pengguna
-    balance = get_coin_balance(user_id)
-    if balance < RATE_COST:
-        return await message.reply(f"Coin Anda tidak cukup. Anda memiliki {balance} 🪙, dibutuhkan {RATE_COST} 🪙.")
+    # ==== PERUBAHAN DIMULAI DI SINI ====
+    
+    is_admin = user_id in ADMINS
+    final_balance_text = ""
 
-    # Proses Transaksi
-    try:
+    # Logika Pengecekan Koin
+    if not is_admin:
+        # Jika BUKAN admin, cek koin seperti biasa
+        balance = get_coin_balance(user_id)
+        if balance < RATE_COST:
+            return await message.reply(f"Coin Anda tidak cukup. Anda memiliki {balance} 🪙, dibutuhkan {RATE_COST} 🪙.")
+        
+        # Kurangi koin user biasa
         new_balance = balance - RATE_COST
-        update_coin_balance(user_id, new_balance) # Kurangi koin user
+        update_coin_balance(user_id, new_balance)
+        final_balance_text = f"Sisa coin Anda: {new_balance} 🪙."
+    
+    else:
+        # Jika ADMIN, koin tidak berkurang
+        final_balance_text = "Sisa coin Anda: ∞ (Tidak Terbatas)."
+    
+    # ==== PERUBAHAN SELESAI DI SINI ====
+
+    # Proses Transaksi (Sama untuk admin dan user)
+    try:
         give_strawberry(talent_id) # Tambah 🍓 ke talent
 
-        await message.reply(f"✅ Berhasil! Anda memberikan 1 🍓 ke **{talent['name']}**.\nSisa coin Anda: {new_balance} 🪙.")
+        await message.reply(f"✅ Berhasil! Anda memberikan 1 🍓 ke **{talent['name']}**.\n{final_balance_text}")
 
         # Kirim notifikasi ke talent
         try:
@@ -162,16 +172,26 @@ async def rate_talent_command(client: Bot, message: Message):
                 f"🎉 Selamat! Anda baru saja menerima 1 🍓 dari {message.from_user.first_name}."
             )
         except Exception:
-            pass # Gagal secara diam-diam
+            pass 
 
     except Exception as e:
         await message.reply(f"Terjadi error saat memproses rating: {e}")
-        # (Opsional: kembalikan koin jika gagal di tengah jalan)
-        # add_coins(user_id, RATE_COST)
+        # Jika error, kembalikan koin hanya jika user bukan admin
+        if not is_admin:
+            add_coins(user_id, RATE_COST)
 
 
 @Bot.on_message(filters.command("mycoins") & filters.private)
 async def my_coins_command(client: Bot, message: Message):
     """Cek saldo koin pribadi."""
-    balance = get_coin_balance(message.from_user.id)
-    await message.reply(f"Anda memiliki: **{balance} 🪙 coin**.")
+    
+    # ==== PERUBAHAN DIMULAI DI SINI ====
+    user_id = message.from_user.id
+    if user_id in ADMINS:
+        balance_text = "∞ (Tidak Terbatas)"
+    else:
+        balance = get_coin_balance(user_id)
+        balance_text = f"**{balance}**"
+    # ==== PERUBAHAN SELESAI DI SINI ====
+
+    await message.reply(f"Anda memiliki: {balance_text} 🪙 coin.")
