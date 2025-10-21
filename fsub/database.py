@@ -8,8 +8,6 @@ database = dbclient[DATABASE_NAME]
 user_data = database['users']
 talent_data = database['talents']
 coin_data = database['user_coins']
-
-# --- KOLEKSI BARU UNTUK VIP ---
 vip_purchases = database['vip_purchases']
 
 
@@ -39,12 +37,13 @@ def del_user(user_id: int):
 def add_talent(user_id: int, name: str):
     """Menambahkan talent baru ke database."""
     if not talent_data.find_one({'_id': user_id}):
-        # <--- PERUBAHAN: Menambahkan field 'vip_link' ---
+        # <--- PERUBAHAN: Mengganti 'vip_link' ---
         talent_data.insert_one({
             '_id': user_id, 
             'name': name, 
             'strawberries': 0, 
-            'vip_link': None  # Link VIP default-nya kosong
+            'vip_chat_id': None,  # ID channel VIP
+            'vip_chat_title': None # Nama channel VIP
         })
         return True
     return False 
@@ -52,7 +51,6 @@ def add_talent(user_id: int, name: str):
 def del_talent(user_id: int):
     """Menghapus talent dari database."""
     result = talent_data.delete_one({'_id': user_id})
-    # Juga hapus data pembelian VIP terkait (opsional tapi bersih)
     vip_purchases.delete_many({'talent_id': user_id})
     return result.deleted_count > 0
 
@@ -72,20 +70,22 @@ def give_strawberry(user_id: int):
     )
     return
 
-# --- Fungsi VIP (BARU) ---
+# --- Fungsi VIP (Diperbarui) ---
 
-def set_vip_link(user_id: int, link: str):
-    """Mengatur atau memperbarui link VIP talent."""
+def set_vip_channel(user_id: int, chat_id: int, chat_title: str):
+    """Mengatur atau memperbarui channel VIP talent."""
+    # <--- PERUBAHAN: Menyimpan ID dan Judul ---
     talent_data.update_one(
         {'_id': user_id},
-        {'$set': {'vip_link': link}}
+        {'$set': {'vip_chat_id': chat_id, 'vip_chat_title': chat_title}}
     )
 
-def del_vip_link(user_id: int):
-    """Menghapus link VIP talent."""
+def del_vip_channel(user_id: int):
+    """Menghapus channel VIP talent."""
+    # <--- PERUBAHAN: Menghapus ID dan Judul ---
     talent_data.update_one(
         {'_id': user_id},
-        {'$set': {'vip_link': None}}
+        {'$set': {'vip_chat_id': None, 'vip_chat_title': None}}
     )
 
 def add_vip_purchase(user_id: int, talent_id: int):
@@ -93,7 +93,7 @@ def add_vip_purchase(user_id: int, talent_id: int):
     vip_purchases.update_one(
         {'user_id': user_id, 'talent_id': talent_id},
         {'$set': {'user_id': user_id, 'talent_id': talent_id}},
-        upsert=True # Buat baru jika belum ada
+        upsert=True 
     )
 
 def check_vip_purchase(user_id: int, talent_id: int):
@@ -105,14 +105,12 @@ def check_vip_purchase(user_id: int, talent_id: int):
 # --- Fungsi Koin (Sudah Ada) ---
 
 def get_coin_balance(user_id: int):
-    """Mendapatkan saldo koin pengguna."""
     user = coin_data.find_one({'_id': user_id})
     if user:
         return user.get('coins', 0)
     return 0
 
 def update_coin_balance(user_id: int, new_balance: int):
-    """Mengatur saldo koin pengguna ke jumlah tertentu."""
     coin_data.update_one(
         {'_id': user_id},
         {'$set': {'coins': new_balance}},
@@ -121,7 +119,6 @@ def update_coin_balance(user_id: int, new_balance: int):
     return
 
 def add_coins(user_id: int, amount: int):
-    """Menambahkan (atau mengurangi) koin dari saldo pengguna."""
     coin_data.update_one(
         {'_id': user_id},
         {'$inc': {'coins': amount}},
