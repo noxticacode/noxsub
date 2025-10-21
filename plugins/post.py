@@ -20,6 +20,12 @@ from fsub.func import encode
             "uptime",
             "users",
             "batch",
+            "addtalent",
+            "deltalent",
+            "tfcoin",
+            "talent",
+            "rate"
+            "mycoins"
             "broadcast"
         ]
     )
