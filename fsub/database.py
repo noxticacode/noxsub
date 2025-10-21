@@ -1,4 +1,4 @@
-from pymongo import MongoClient
+from pymongo import MongoClient, DESCENDING
 from fsub.config import DATABASE_URL, DATABASE_NAME
 
 dbclient = MongoClient(DATABASE_URL)
@@ -37,13 +37,14 @@ def del_user(user_id: int):
 def add_talent(user_id: int, name: str):
     """Menambahkan talent baru ke database."""
     if not talent_data.find_one({'_id': user_id}):
-        # <--- PERUBAHAN: Mengganti 'vip_link' ---
+        # <--- PERUBAHAN: Menambahkan field 'bio' ---
         talent_data.insert_one({
             '_id': user_id, 
             'name': name, 
             'strawberries': 0, 
-            'vip_chat_id': None,  # ID channel VIP
-            'vip_chat_title': None # Nama channel VIP
+            'vip_chat_id': None,  
+            'vip_chat_title': None,
+            'bio': None # Bio default-nya kosong
         })
         return True
     return False 
@@ -59,7 +60,7 @@ def get_talent(user_id: int):
     return talent_data.find_one({'_id': user_id})
 
 def get_all_talents():
-    """Mengambil daftar semua talent."""
+    """Mengambil daftar semua talent (diurutkan berdasarkan nama)."""
     return list(talent_data.find().sort("name", 1)) 
 
 def give_strawberry(user_id: int):
@@ -70,11 +71,25 @@ def give_strawberry(user_id: int):
     )
     return
 
+# --- Fungsi Bio & Papan Peringkat (BARU) ---
+
+def set_talent_bio(user_id: int, bio: str):
+    """Mengatur atau memperbarui bio talent."""
+    talent_data.update_one(
+        {'_id': user_id},
+        {'$set': {'bio': bio}}
+    )
+
+def get_top_talents(limit: int = 10):
+    """Mengambil daftar talent teratas berdasarkan 🍓."""
+    # Mengurutkan berdasarkan 'strawberries' secara descending (-1)
+    return list(talent_data.find().sort("strawberries", DESCENDING).limit(limit))
+
+
 # --- Fungsi VIP (Diperbarui) ---
 
 def set_vip_channel(user_id: int, chat_id: int, chat_title: str):
     """Mengatur atau memperbarui channel VIP talent."""
-    # <--- PERUBAHAN: Menyimpan ID dan Judul ---
     talent_data.update_one(
         {'_id': user_id},
         {'$set': {'vip_chat_id': chat_id, 'vip_chat_title': chat_title}}
@@ -82,7 +97,6 @@ def set_vip_channel(user_id: int, chat_id: int, chat_title: str):
 
 def del_vip_channel(user_id: int):
     """Menghapus channel VIP talent."""
-    # <--- PERUBAHAN: Menghapus ID dan Judul ---
     talent_data.update_one(
         {'_id': user_id},
         {'$set': {'vip_chat_id': None, 'vip_chat_title': None}}
@@ -100,6 +114,11 @@ def check_vip_purchase(user_id: int, talent_id: int):
     """Memeriksa apakah user sudah pernah membeli VIP talent."""
     found = vip_purchases.find_one({'user_id': user_id, 'talent_id': talent_id})
     return bool(found)
+
+def revoke_vip_purchase(user_id: int, talent_id: int):
+    """Menghapus catatan pembelian VIP."""
+    result = vip_purchases.delete_one({'user_id': user_id, 'talent_id': talent_id})
+    return result.deleted_count > 0
 
 
 # --- Fungsi Koin (Sudah Ada) ---
