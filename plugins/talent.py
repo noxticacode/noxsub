@@ -30,7 +30,7 @@ from hydrogram.errors import (
 
 # Biaya
 RATE_COST = 10
-VIP_COST = 2500 
+VIP_COST = 250 
 # Batas Karakter Bio
 BIO_LIMIT = 150
 
