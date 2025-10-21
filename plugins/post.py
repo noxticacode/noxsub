@@ -26,6 +26,9 @@ from fsub.func import encode
             "talent",
             "rate",
             "mycoins",
+            "revokevip",
+            "setbio",
+            "toptalent",
             "broadcast"
         ]
     )
