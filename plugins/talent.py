@@ -10,16 +10,14 @@ from fsub.database import (
     get_coin_balance,
     update_coin_balance,
     add_coins,
-    # Fungsi VIP Baru
-    set_vip_channel, # <--- PERUBAHAN
-    del_vip_channel, # <--- PERUBAHAN
+    set_vip_channel,
+    del_vip_channel,
     add_vip_purchase,
     check_vip_purchase
 )
 
 from hydrogram import filters
 from hydrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-# <--- PERUBAHAN: Import tambahan ---
 from hydrogram.enums import ChatMemberStatus
 from hydrogram.errors import (
     PeerIdInvalid, UserIsBlocked, InputUserDeactivated, Forbidden, UserIsBot,
@@ -120,13 +118,15 @@ async def set_vip_command(client: Bot, message: Message):
         
         chat_id = int(chat_id_str)
         
-        # <--- PERUBAHAN: Validasi Bot adalah Admin ---
         try:
             chat = await client.get_chat(chat_id)
             member = await client.get_chat_member(chat_id, "me")
             
-            if member.status != ChatMemberStatus.ADMINISTRATOR or not member.can_invite_users:
+            # <--- INI ADALAH PERBAIKANNYA ---
+            # Mengecek `member.privileges.can_invite_users`
+            if member.status != ChatMemberStatus.ADMINISTRATOR or not (member.privileges and member.privileges.can_invite_users):
                 return await message.reply("Gagal! Saya harus menjadi Admin di channel tersebut dan memiliki izin 'Undang Pengguna via Link'.")
+            # <--- AKHIR PERBAIKAN ---
 
         except (Unauthorized, UserNotParticipant):
             return await message.reply("Gagal mengakses channel. Pastikan saya telah ditambahkan ke channel tersebut dan menjadi admin.")
@@ -179,7 +179,6 @@ async def list_talents_command(client: Bot, message: Message):
         
         row_buttons = [] 
         
-        # <--- PERUBAHAN: Cek 'vip_chat_id' ---
         if talent.get('vip_chat_id'): 
             vip_title = talent.get('vip_chat_title', 'VIP')
             line += " | ⭐️ **VIP**"
@@ -203,7 +202,6 @@ async def list_talents_command(client: Bot, message: Message):
 
 @Bot.on_message(filters.command("rate") & filters.private)
 async def rate_talent_command(client: Bot, message: Message):
-    # (Fungsi ini tidak berubah, dibiarkan apa adanya)
     if len(message.command) < 2:
         return await message.reply(f"Gunakan format: /rate (user_id_talent)\nBiaya: {RATE_COST} 🪙 coin.")
     try:
@@ -250,7 +248,6 @@ async def rate_talent_command(client: Bot, message: Message):
 
 @Bot.on_message(filters.command("mycoins") & filters.private)
 async def my_coins_command(client: Bot, message: Message):
-    # (Fungsi ini tidak berubah, dibiarkan apa adanya)
     user_id = message.from_user.id
     if user_id in ADMINS:
         balance_text = "∞ (Tidak Terbatas)"
@@ -275,7 +272,6 @@ async def handle_buy_vip_callback(client: Bot, query):
         return await query.answer("Error: Tombol tidak valid.", show_alert=True)
         
     talent = get_talent(talent_id)
-    # <--- PERUBAHAN: Cek 'vip_chat_id' ---
     if not talent or not talent.get('vip_chat_id'):
         return await query.answer("Channel VIP talent ini tidak lagi tersedia.", show_alert=True)
     
@@ -293,11 +289,9 @@ async def handle_buy_vip_callback(client: Bot, query):
         return await query.answer(f"Error saat cek keanggotaan: {e}", show_alert=True)
 
     # 2. Cek apakah user pernah membeli (untuk re-join gratis jika dia keluar)
-    if check_vip_purchase(user_id, talent_id):
-        await query.answer("Anda sudah pernah membeli akses ini. Link undangan baru (sekali pakai) dikirim ke PM Anda.", show_alert=False)
-        # Lanjutkan ke proses pembuatan link di bawah, tapi lewati cek koin
+    has_purchased_before = check_vip_purchase(user_id, talent_id)
     
-    else:
+    if not has_purchased_before:
         # 3. Cek apakah user adalah Admin (Admin gratis)
         is_admin = user_id in ADMINS
         
@@ -314,14 +308,16 @@ async def handle_buy_vip_callback(client: Bot, query):
         add_vip_purchase(user_id, talent_id) 
         await query.answer("Pembelian sukses! Link undangan (sekali pakai) dikirim ke PM Anda.", show_alert=True)
     
+    else:
+        # Jika sudah pernah beli, kirim link baru
+        await query.answer("Anda sudah pernah membeli akses ini. Link undangan baru (sekali pakai) dikirim ke PM Anda.", show_alert=False)
+        
 
     # 7. Proses pembuatan link (Untuk pembelian baru ATAU re-join)
     try:
-        # <--- PERUBAHAN UTAMA: Buat link sekali pakai ---
         link = await client.create_chat_invite_link(
             chat_id=vip_chat_id,
             member_limit=1 # Hanya untuk 1 pengguna
-            # Anda juga bisa menambahkan `expire_date` jika mau
         )
         invite_link = link.invite_link
         
@@ -339,7 +335,7 @@ async def handle_buy_vip_callback(client: Bot, query):
         return await query.answer(f"Gagal membuat link undangan: {e}", show_alert=True)
 
     # 9. Kirim notifikasi ke Talent (hanya jika pembelian pertama)
-    if not check_vip_purchase(user_id, talent_id): # Cek lagi, karena sekarang sudah dicatat
+    if not has_purchased_before:
         try:
             sender_link = f"[{user.first_name}](tg://user?id={user_id})"
             await client.send_message(
