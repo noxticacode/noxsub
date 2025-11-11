@@ -1,6 +1,7 @@
 import asyncio
 from fsub import Bot
-from fsub.config import ADMINS 
+# --- PERUBAHAN: Tambahkan CHANNEL_DB dan FORCE_SUB_ ---
+from fsub.config import ADMINS, CHANNEL_DB, FORCE_SUB_ 
 from fsub.database import (
     add_talent,
     del_talent,
@@ -25,7 +26,7 @@ from hydrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from hydrogram.enums import ChatMemberStatus
 from hydrogram.errors import (
     PeerIdInvalid, UserIsBlocked, InputUserDeactivated, Forbidden, UserIsBot,
-    UserNotParticipant, Unauthorized, ChatAdminRequired
+    UserNotParticipant, Unauthorized, ChatAdminRequired, FloodWait # Tambahkan error
 )
 
 # Biaya
@@ -414,3 +415,103 @@ async def handle_buy_vip_callback(client: Bot, query):
                     pass 
         except Exception:
             pass
+
+# --- FITUR BARU: POSTING PROMOSI TALENT ---
+
+BIAYA_POSTING = 10
+POSTING_PHOTO_URL = "https://files.catbox.moe/iu8qlc.jpg"
+
+@Bot.on_message(
+    filters.private & 
+    filters.text & 
+    filters.regex(r"#fwbtalent") & 
+    ~filters.forwarded
+)
+async def handle_talent_post(client: Bot, message: Message):
+    user = message.from_user
+    user_id = user.id
+    talent = get_talent(user_id)
+
+    # 1. Validasi: Apakah pengirim seorang Talent?
+    if not talent:
+        # Abaikan jika bukan talent, atau Anda bisa membalas:
+        # return await message.reply("Hanya talent terdaftar yang bisa menggunakan fitur ini.")
+        return 
+
+    is_admin = user_id in ADMINS
+    
+    # 2. Validasi: Cek username
+    if not user.username:
+        return await message.reply("Anda harus memiliki username Telegram (@username) untuk menggunakan fitur ini.")
+    
+    user_username = user.username
+    text_content = message.text
+
+    # 3. Validasi: Cek apakah username sendiri ada di pesan
+    if f"@{user_username}" not in text_content:
+        return await message.reply(
+            f"Pesan Anda harus menyertakan username Anda sendiri (@{user_username}) untuk verifikasi."
+        )
+
+    # 4. Validasi: Cek Koin (Admin gratis)
+    if not is_admin:
+        balance = get_coin_balance(user_id)
+        if balance < BIAYA_POSTING:
+            return await message.reply(
+                f"Koin Anda tidak cukup untuk posting. Anda memiliki {balance} 🪙, dibutuhkan {BIAYA_POSTING} 🪙."
+            )
+    
+    # 5. Dapatkan Channel Tujuan (FORCE_SUB_2)
+    try:
+        # Mengambil ID channel dari FORCE_SUB_[2] di config
+        target_channel_id = FORCE_SUB_.get(2)
+        if not target_channel_id:
+            return await message.reply("Error: `FORCE_SUB_2` tidak diatur di konfigurasi bot.")
+    except Exception as e:
+        return await message.reply(f"Error saat mengambil konfigurasi channel: {e}")
+
+    # 6. Proses Pengiriman
+    try:
+        # a. Kirim postingan ke channel
+        sent_post = await client.send_photo(
+            chat_id=target_channel_id,
+            photo=POSTING_PHOTO_URL,
+            caption=text_content
+        )
+        
+        post_link = sent_post.link
+
+        # b. Kurangi koin jika bukan admin
+        if not is_admin:
+            new_balance = balance - BIAYA_POSTING
+            update_coin_balance(user_id, new_balance)
+            
+        # c. Kirim notifikasi sukses ke Talent
+        await message.reply(
+            f"✅ **Postingan Anda Berhasil Terkirim!**\n\n"
+            f"Biaya: {BIAYA_POSTING} 🪙\n"
+            f"Lihat postingan Anda di sini: {post_link}"
+        )
+
+        # d. Kirim notifikasi log ke CHANNEL_DB
+        log_message = (
+            f"🔔 **Postingan Talent Baru (#fwbtalent)**\n\n"
+            f"👤 **Talent:** {user.first_name} ({user.mention})\n"
+            f"🆔 **User ID:** `{user.id}`\n"
+            f"🔖 **Username:** @{user_username}\n"
+            f"🔗 **Link Postingan:** {post_link}\n\n"
+            f"--- Pesan Asli ---\n"
+            f"{text_content}"
+        )
+        
+        # Menggunakan client.db_channel.id seperti di plugins/post.py
+        await client.send_message(
+            chat_id=client.db_channel.id, 
+            text=log_message, 
+            disable_web_page_preview=True
+        )
+
+    except (ChatAdminRequired, Unauthorized):
+        await message.reply("Gagal posting: Bot tidak memiliki izin admin (atau izin 'Post Messages') di channel `FORCE_SUB_2`.")
+    except Exception as e:
+        await message.reply(f"Terjadi error tak terduga saat mengirim postingan: {e}")
