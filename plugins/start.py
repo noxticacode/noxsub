@@ -224,3 +224,12 @@ async def get_uptime(_, message: Message):
         f"Waktu Aktif: {uptime}\n"
         f"Sejak: {START_TIME_ISO}"
     )
+
+# --- FITUR BARU: /idku ---
+@Bot.on_message(filters.command("idku") & filters.private)
+async def idku_command(client: Bot, message: Message):
+    user_id = message.from_user.id
+    await message.reply(
+        f"User ID Anda adalah: `{user_id}`",
+        quote=True
+    )
