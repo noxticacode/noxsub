@@ -447,11 +447,13 @@ async def handle_talent_post(client: Bot, message: Message):
     user_username = user.username
     text_content = message.text
 
-    # 3. Validasi: Cek apakah username sendiri ada di pesan
-    if f"@{user_username}" not in text_content:
+    # 3. Validasi: Cek apakah username sendiri ada di pesan (Case-Insensitive)
+    # --- PERUBAHAN DI SINI ---
+    if f"@{user_username.lower()}" not in text_content.lower():
         return await message.reply(
             f"Pesan Anda harus menyertakan username Anda sendiri (@{user_username}) untuk verifikasi."
         )
+    # -------------------------
 
     # 4. Validasi: Cek Koin (Admin gratis)
     if not is_admin:
